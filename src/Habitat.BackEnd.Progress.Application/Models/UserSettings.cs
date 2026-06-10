@@ -1,6 +1,6 @@
-namespace Habitat.Application.Models;
+namespace Habitat.BackEnd.Progress.Application.Models;
 
-public class UserSettings
+public sealed class UserSettings
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
