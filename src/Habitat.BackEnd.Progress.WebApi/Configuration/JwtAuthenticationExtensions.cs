@@ -1,5 +1,8 @@
 using System.Security.Claims;
+using System.Text.Json;
+using Habitat.BackEnd.Progress.Application.Enums;
 using Habitat.BackEnd.Progress.Infrastructure.Auth;
+using Habitat.BackEnd.Progress.WebApi.ProblemDetails;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -9,9 +12,10 @@ public static class JwtAuthenticationExtensions
 {
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
-        var jwtOptions = ReadJwtOptions(configuration);
-        var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY");
-        var signingKey = JwtSigningKeyFactory.Create(jwtKey!);
+        var jwtOptions = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+            ?? throw new InvalidOperationException("Jwt configuration section is required.");
+
+        var signingKey = JwtSigningKeyFactory.Create(Environment.GetEnvironmentVariable("JWT_KEY"));
 
         services
             .AddAuthentication(options =>
@@ -21,7 +25,7 @@ public static class JwtAuthenticationExtensions
             })
             .AddJwtBearer(options =>
             {
-                options.RequireHttpsMetadata = true;
+                options.RequireHttpsMetadata = false;
                 options.SaveToken = false;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -36,38 +40,39 @@ public static class JwtAuthenticationExtensions
                     NameClaimType = ClaimTypes.Name,
                     RoleClaimType = ClaimTypes.Role
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    OnChallenge = async context =>
+                    {
+                        context.HandleResponse();
+                        await WriteProblemAsync(context.HttpContext, StatusCodes.Status401Unauthorized, "Unauthorized", "Authentication is required to access this resource.");
+                    },
+                    OnForbidden = async context =>
+                    {
+                        await WriteProblemAsync(context.HttpContext, StatusCodes.Status403Forbidden, "Forbidden", "You do not have permission to access this resource.");
+                    }
+                };
             });
+
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("AdminOnly", policy => policy.RequireAuthenticatedUser().RequireRole(UserRole.ADMIN.ToString()));
+            options.AddPolicy("UserOrAdmin", policy => policy.RequireAuthenticatedUser().RequireRole(UserRole.USER.ToString(), UserRole.ADMIN.ToString()));
+        });
 
         return services;
     }
 
-    private static JwtOptions ReadJwtOptions(IConfiguration configuration)
+    private static async Task WriteProblemAsync(HttpContext context, int status, string title, string detail)
     {
-        var issuer = configuration["Jwt:Issuer"];
-        if (string.IsNullOrWhiteSpace(issuer))
+        if (context.Response.HasStarted)
         {
-            throw new InvalidOperationException("Jwt:Issuer configuration is required.");
+            return;
         }
 
-        var audience = configuration["Jwt:Audience"];
-        if (string.IsNullOrWhiteSpace(audience))
-        {
-            throw new InvalidOperationException("Jwt:Audience configuration is required.");
-        }
-
-        var expiresInMinutesValue = configuration["Jwt:ExpiresInMinutes"];
-        var expiresInMinutes = 60;
-        if (!string.IsNullOrWhiteSpace(expiresInMinutesValue)
-            && (!int.TryParse(expiresInMinutesValue, out expiresInMinutes) || expiresInMinutes <= 0))
-        {
-            throw new InvalidOperationException("Jwt:ExpiresInMinutes must be a positive integer.");
-        }
-
-        return new JwtOptions
-        {
-            Issuer = issuer,
-            Audience = audience,
-            ExpiresInMinutes = expiresInMinutes
-        };
+        context.Response.StatusCode = status;
+        context.Response.ContentType = "application/problem+json";
+        var problem = ProblemDetailsFactory.Create(context, status, title, detail);
+        await JsonSerializer.SerializeAsync(context.Response.Body, problem, new JsonSerializerOptions(JsonSerializerDefaults.Web), context.RequestAborted);
     }
 }
