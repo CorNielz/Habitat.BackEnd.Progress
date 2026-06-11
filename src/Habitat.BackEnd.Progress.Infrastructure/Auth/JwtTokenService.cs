@@ -9,38 +9,22 @@ namespace Habitat.BackEnd.Progress.Infrastructure.Auth;
 
 public sealed class JwtTokenService : ITokenService
 {
-    private readonly JwtOptions _jwtOptions;
+    private readonly JwtOptions _options;
     private readonly SymmetricSecurityKey _signingKey;
 
-    public JwtTokenService(IOptions<JwtOptions> jwtOptions)
+    public JwtTokenService(IOptions<JwtOptions> options)
     {
-        _jwtOptions = jwtOptions.Value;
-
-        if (string.IsNullOrWhiteSpace(_jwtOptions.Issuer))
-        {
-            throw new InvalidOperationException("Jwt:Issuer configuration is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(_jwtOptions.Audience))
-        {
-            throw new InvalidOperationException("Jwt:Audience configuration is required.");
-        }
-
-        if (_jwtOptions.ExpiresInMinutes <= 0)
-        {
-            throw new InvalidOperationException("Jwt:ExpiresInMinutes must be greater than zero.");
-        }
-
-        var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY");
-        _signingKey = JwtSigningKeyFactory.Create(jwtKey!);
+        _options = options.Value;
+        ValidateOptions(_options);
+        _signingKey = JwtSigningKeyFactory.Create(Environment.GetEnvironmentVariable("JWT_KEY"));
     }
 
-    public Task<(string Token, DateTime ExpiresAtUtc)> GenerateTokenAsync(User user, CancellationToken cancellationToken = default)
+    public Task<TokenResult> GenerateTokenAsync(User user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
 
         var nowUtc = DateTime.UtcNow;
-        var expiresAtUtc = nowUtc.AddMinutes(_jwtOptions.ExpiresInMinutes);
+        var expiresAtUtc = nowUtc.AddMinutes(_options.ExpiresInMinutes);
 
         var claims = new List<Claim>
         {
@@ -48,25 +32,37 @@ public sealed class JwtTokenService : ITokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Name, user.Name),
             new(ClaimTypes.Role, user.Role.ToString())
         };
 
-        if (!string.IsNullOrWhiteSpace(user.Name))
-        {
-            claims.Add(new Claim(ClaimTypes.Name, user.Name));
-        }
-
         var credentials = new SigningCredentials(_signingKey, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
-            issuer: _jwtOptions.Issuer,
-            audience: _jwtOptions.Audience,
+            issuer: _options.Issuer,
+            audience: _options.Audience,
             claims: claims,
             notBefore: nowUtc,
             expires: expiresAtUtc,
             signingCredentials: credentials);
 
-        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+        return Task.FromResult(new TokenResult(new JwtSecurityTokenHandler().WriteToken(token), _options.ExpiresInMinutes * 60));
+    }
 
-        return Task.FromResult((accessToken, expiresAtUtc));
+    private static void ValidateOptions(JwtOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.Issuer))
+        {
+            throw new InvalidOperationException("Jwt:Issuer configuration is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Audience))
+        {
+            throw new InvalidOperationException("Jwt:Audience configuration is required.");
+        }
+
+        if (options.ExpiresInMinutes <= 0)
+        {
+            throw new InvalidOperationException("Jwt:ExpiresInMinutes must be greater than zero.");
+        }
     }
 }
