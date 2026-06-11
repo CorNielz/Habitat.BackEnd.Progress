@@ -7,7 +7,7 @@ public static class JwtSigningKeyFactory
 {
     private const int MinimumKeySizeInBytes = 32;
 
-    public static SymmetricSecurityKey Create(string jwtKey)
+    public static SymmetricSecurityKey Create(string? jwtKey)
     {
         if (string.IsNullOrWhiteSpace(jwtKey))
         {
