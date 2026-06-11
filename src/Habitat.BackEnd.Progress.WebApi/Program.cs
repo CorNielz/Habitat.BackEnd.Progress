@@ -29,8 +29,14 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
                 kvp => kvp.Key,
                 kvp => kvp.Value!.Errors.Select(error => error.ErrorMessage).ToArray());
 
-        var problem = ProblemDetailsFactory.Create(context.HttpContext, StatusCodes.Status400BadRequest, "Bad Request", "The request contains invalid data.");
+        var problem = ProblemDetailsFactory.Create(
+            context.HttpContext,
+            StatusCodes.Status400BadRequest,
+            "Bad Request",
+            "The request contains invalid data.");
+
         problem.Extensions["errors"] = errors;
+
         return new BadRequestObjectResult(problem)
         {
             ContentTypes = { "application/problem+json" }
@@ -47,17 +53,17 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
+}
 
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Homologation"))
+{
     app.UseSwagger();
+
     app.UseSwaggerUI(options =>
     {
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "Habitat: Progress API v1");
         options.RoutePrefix = "swagger";
     });
-}
-else
-{
-    app.UseExceptionHandler();
 }
 
 if (app.Configuration.GetValue<bool>("Security:UseHttpsRedirection"))
