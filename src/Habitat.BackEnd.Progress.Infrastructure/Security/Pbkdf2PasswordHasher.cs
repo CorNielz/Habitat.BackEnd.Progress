@@ -19,7 +19,6 @@ public sealed class Pbkdf2PasswordHasher : IPasswordHasher
 
         var salt = RandomNumberGenerator.GetBytes(SaltSizeInBytes);
         var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, Algorithm, HashSizeInBytes);
-
         return $"{Iterations}.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";
     }
 
@@ -30,37 +29,27 @@ public sealed class Pbkdf2PasswordHasher : IPasswordHasher
             return false;
         }
 
-        var parts = hashedPassword.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length != 3)
+        var parts = hashedPassword.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length != 3 || !int.TryParse(parts[0], out var iterations) || iterations <= 0)
         {
             return false;
         }
-
-        if (!int.TryParse(parts[0], out var iterations) || iterations <= 0)
-        {
-            return false;
-        }
-
-        byte[] salt;
-        byte[] expectedHash;
 
         try
         {
-            salt = Convert.FromBase64String(parts[1]);
-            expectedHash = Convert.FromBase64String(parts[2]);
+            var salt = Convert.FromBase64String(parts[1]);
+            var expectedHash = Convert.FromBase64String(parts[2]);
+            if (salt.Length != SaltSizeInBytes || expectedHash.Length != HashSizeInBytes)
+            {
+                return false;
+            }
+
+            var actualHash = Rfc2898DeriveBytes.Pbkdf2(providedPassword, salt, iterations, Algorithm, expectedHash.Length);
+            return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
         }
         catch (FormatException)
         {
             return false;
         }
-
-        if (salt.Length != SaltSizeInBytes || expectedHash.Length != HashSizeInBytes)
-        {
-            return false;
-        }
-
-        var actualHash = Rfc2898DeriveBytes.Pbkdf2(providedPassword, salt, iterations, Algorithm, expectedHash.Length);
-
-        return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
     }
 }
