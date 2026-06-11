@@ -5,13 +5,15 @@
     <File Path="azure-pipelines.yml" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/Habitat.BackEnd.Progress.Application/Habitat.BackEnd.Progress.Application.csproj" Id="141e048d-9d39-4188-b6fd-99f6b22d097c" />
-    <Project Path="src/Habitat.BackEnd.Progress.WebApi/Habitat.BackEnd.Progress.WebApi.csproj" Id="d9c34a01-6406-4b9e-be22-33bf43f5a285" />
+    <Project Path="R:/College/Habitat.BackEnd.Progress/src/Habitat.BackEnd.Progress.Application/Habitat.BackEnd.Progress.Application.csproj" Id="141e048d-9d39-4188-b6fd-99f6b22d097c" />
+    <Project Path="R:/College/Habitat.BackEnd.Progress/src/Habitat.BackEnd.Progress.Infrastructure/Habitat.BackEnd.Progress.Infrastructure.csproj" />
+    <Project Path="R:/College/Habitat.BackEnd.Progress/src/Habitat.BackEnd.Progress.WebApi/Habitat.BackEnd.Progress.WebApi.csproj" Id="d9c34a01-6406-4b9e-be22-33bf43f5a285" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/ContractTests/ContractTests.csproj" Id="6bc0da6a-44b8-478f-994c-0888e479f66d" />
-    <Project Path="tests/FunctionalTests/FunctionalTests.csproj" Id="2dee558e-df8d-4ac4-84ff-997634d93819" />
-    <Project Path="tests/IntegratedTests/IntegratedTests.csproj" Id="a10a3abd-b2f0-4166-9c04-b73d13f07751" />
-    <Project Path="tests/UnitTests/UnitTests.csproj" Id="12f7cb54-161a-4f3d-bf35-6e3f80859c4c" />
+    <Project Path="R:/College/Habitat.BackEnd.Progress/tests/ContractTests/ContractTests.csproj" Id="6bc0da6a-44b8-478f-994c-0888e479f66d" />
+    <Project Path="R:/College/Habitat.BackEnd.Progress/tests/FunctionalTests/FunctionalTests.csproj" Id="2dee558e-df8d-4ac4-84ff-997634d93819" />
+    <Project Path="R:/College/Habitat.BackEnd.Progress/tests/IntegratedTests/IntegratedTests.csproj" Id="a10a3abd-b2f0-4166-9c04-b73d13f07751" />
+    <Project Path="R:/College/Habitat.BackEnd.Progress/tests/UnitTests/UnitTests.csproj" Id="12f7cb54-161a-4f3d-bf35-6e3f80859c4c" />
+    <Project Path="tests/Habitat.BackEnd.Progress.TestSupport/Habitat.BackEnd.Progress.TestSupport.csproj" />
   </Folder>
 </Solution>
