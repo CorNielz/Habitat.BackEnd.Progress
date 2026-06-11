@@ -1,13 +1,13 @@
-using System.Security.Claims;
 using Habitat.BackEnd.Progress.Application.DTOs.Auth;
+using Habitat.BackEnd.Progress.Application.DTOs.Users;
 using Habitat.BackEnd.Progress.Application.Interfaces.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Habitat.BackEnd.Progress.WebApi.Features.Auth;
+namespace Habitat.BackEnd.Progress.WebApi.Controllers.Auth;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v1/auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -17,42 +17,57 @@ public sealed class AuthController : ControllerBase
         _authService = authService;
     }
 
-    [HttpPost("login")]
+    [HttpPost("register")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Login([FromBody] LoginRequestDto request, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<UserResponse>> Register(
+        [FromBody] RegisterRequest request,
+        CancellationToken cancellationToken)
     {
-        var result = await _authService.LoginAsync(request, cancellationToken);
-        if (result is null)
+        var result = await _authService.RegisterAsync(request, cancellationToken);
+
+        if (!result.IsSuccess || result.Value is null)
         {
-            return Unauthorized(new { message = "Invalid email or password." });
+            return Conflict(new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Type = "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+                Title = "Conflict",
+                Status = StatusCodes.Status409Conflict,
+                Detail = result.Error?.ToString() ?? "A user with this e-mail already exists.",
+                Instance = HttpContext.Request.Path
+            });
         }
 
-        return Ok(result);
+        return Created(
+            "/api/v1/users/me",
+            result.Value);
     }
 
-    [HttpGet("me")]
-    [Authorize]
-    [ProducesResponseType(typeof(AuthenticatedUserDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public IActionResult Me()
+    [HttpPost("login")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<LoginResponse>> Login(
+        [FromBody] LoginRequest request,
+        CancellationToken cancellationToken)
     {
-        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdValue, out var userId))
+        var result = await _authService.LoginAsync(request, cancellationToken);
+
+        if (!result.IsSuccess || result.Value is null)
         {
-            return Unauthorized();
+            return Unauthorized(new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Type = "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                Title = "Unauthorized",
+                Status = StatusCodes.Status401Unauthorized,
+                Detail = "Invalid e-mail or password.",
+                Instance = HttpContext.Request.Path
+            });
         }
 
-        var response = new AuthenticatedUserDto
-        {
-            Id = userId,
-            Email = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
-            Name = User.FindFirstValue(ClaimTypes.Name),
-            Role = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty
-        };
-
-        return Ok(response);
+        return Ok(result.Value);
     }
 }
