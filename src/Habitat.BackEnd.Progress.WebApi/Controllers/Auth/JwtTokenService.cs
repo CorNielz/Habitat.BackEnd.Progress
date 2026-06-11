@@ -1,56 +1,88 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
-using Habitat.Application.Interfaces;
-using Habitat.Application.Models;
-using Microsoft.Extensions.Configuration;
+using Habitat.BackEnd.Progress.Application.Interfaces.Auth;
+using Habitat.BackEnd.Progress.Application.Models;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Habitat.BackEnd.Progress.WebApi.Features.Auth;
+namespace Habitat.BackEnd.Progress.Infrastructure.Auth;
 
-public class JwtTokenService : ITokenService
+public sealed class JwtTokenService : ITokenService
 {
-    private readonly IConfiguration _configuration;
+    private readonly JwtOptions _options;
+    private readonly SymmetricSecurityKey _signingKey;
 
-    public JwtTokenService(IConfiguration configuration)
+    public JwtTokenService(IOptions<JwtOptions> options)
     {
-        _configuration = configuration;
+        ArgumentNullException.ThrowIfNull(options);
+
+        _options = options.Value;
+        ValidateOptions(_options);
+
+        _signingKey = JwtSigningKeyFactory.Create(
+            Environment.GetEnvironmentVariable("JWT_KEY"));
     }
 
-    public Task<(string token, DateTime expiresAt)> GenerateTokenAsync(User user, CancellationToken cancellationToken)
+    public Task<TokenResult> GenerateTokenAsync(
+        User user,
+        CancellationToken cancellationToken = default)
     {
-        var issuer = _configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt:Issuer not configured");
-        var audience = _configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt:Audience not configured");
+        ArgumentNullException.ThrowIfNull(user);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        var key = Environment.GetEnvironmentVariable("JWT_KEY");
-        if (string.IsNullOrEmpty(key))
-            throw new InvalidOperationException("JWT_KEY environment variable is not set.");
+        var nowUtc = DateTime.UtcNow;
+        var expiresAtUtc = nowUtc.AddMinutes(_options.ExpiresInMinutes);
+        var expiresInSeconds = _options.ExpiresInMinutes * 60;
 
-        var keyBytes = Encoding.UTF8.GetBytes(key);
-        var securityKey = new SymmetricSecurityKey(keyBytes);
-        var creds = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        var userId = user.Id.ToString();
+        var userRole = user.Role.ToString();
 
-        var expiresInMinutes = 60;
-        if (int.TryParse(_configuration["Jwt:ExpiresInMinutes"], out var minutes))
-            expiresInMinutes = minutes;
-
-        var expiresAt = DateTime.UtcNow.AddMinutes(expiresInMinutes);
-
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role)
+            new(JwtRegisteredClaimNames.Sub, userId),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+            new(JwtRegisteredClaimNames.Email, user.Email),
+
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Name, user.Name),
+            new(ClaimTypes.Role, userRole)
         };
 
-        var token = new JwtSecurityToken(
-            issuer: issuer,
-            audience: audience,
-            claims: claims,
-            expires: expiresAt,
-            signingCredentials: creds);
+        var credentials = new SigningCredentials(
+            _signingKey,
+            SecurityAlgorithms.HmacSha256);
 
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-        return Task.FromResult((tokenString, expiresAt));
+        var token = new JwtSecurityToken(
+            issuer: _options.Issuer,
+            audience: _options.Audience,
+            claims: claims,
+            notBefore: nowUtc,
+            expires: expiresAtUtc,
+            signingCredentials: credentials);
+
+        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+
+        return Task.FromResult(new TokenResult(
+            AccessToken: accessToken,
+            ExpiresIn: expiresInSeconds));
+    }
+
+    private static void ValidateOptions(JwtOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.Issuer))
+        {
+            throw new InvalidOperationException("Jwt:Issuer configuration is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Audience))
+        {
+            throw new InvalidOperationException("Jwt:Audience configuration is required.");
+        }
+
+        if (options.ExpiresInMinutes <= 0)
+        {
+            throw new InvalidOperationException("Jwt:ExpiresInMinutes must be greater than zero.");
+        }
     }
 }
