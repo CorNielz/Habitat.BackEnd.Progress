@@ -1,19 +1,357 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- main
+  branches:
+    include:
+      - main
 
-pool:
-  vmImage: ubuntu-latest
+pr:
+  branches:
+    include:
+      - main
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '8.0.x'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+  azureServiceConnection: 'sc-azure-habitat'
+
+  acrName: 'acrhabitatprogresshml'
+  acrLoginServer: 'acrhabitatprogresshml.azurecr.io'
+  imageRepository: 'habitat-progress-api'
+  dockerfilePath: 'src/Habitat.BackEnd.Progress.WebApi/Dockerfile'
+
+  hmlResourceGroup: 'rg-habitat-hml'
+  hmlContainerAppName: 'aca-habitat-api-hml'
+
+  prdResourceGroup: 'rg-habitat-prd'
+  prdContainerAppName: 'aca-habitat-api-prd'
+
+  ciMysqlDatabase: 'habitat_progress'
+  ciMysqlUser: 'habitat_user'
+  ciMysqlPassword: 'habitat_password'
+  ciMysqlRootPassword: 'root_password'
+
+stages:
+  - stage: SecurityGate
+    displayName: 'Security Gate'
+    jobs:
+      - job: Security
+        displayName: 'Run security checks'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - checkout: self
+
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '$(dotnetVersion)'
+
+          - script: |
+              dotnet restore Habitat.BackEnd.Progress.sln
+            displayName: 'Restore packages'
+
+          - script: |
+              dotnet list Habitat.BackEnd.Progress.sln package --vulnerable --include-transitive
+            displayName: 'Check vulnerable NuGet packages'
+
+          - script: |
+              dotnet list Habitat.BackEnd.Progress.sln package --deprecated
+            displayName: 'Check deprecated NuGet packages'
+
+          - script: |
+              dotnet format Habitat.BackEnd.Progress.sln --verify-no-changes --verbosity diagnostic
+            displayName: 'Check code formatting'
+
+  - stage: BuildAndTest
+    displayName: 'Build and Test'
+    dependsOn: SecurityGate
+    jobs:
+      - job: BuildAndTest
+        displayName: 'Build solution and run tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - checkout: self
+
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '$(dotnetVersion)'
+
+          - script: |
+              dotnet restore Habitat.BackEnd.Progress.sln
+            displayName: 'Restore'
+
+          - script: |
+              dotnet build Habitat.BackEnd.Progress.sln --configuration $(buildConfiguration) --no-restore
+            displayName: 'Build'
+
+          - script: |
+              dotnet test tests/UnitTests/UnitTests.csproj \
+                --configuration $(buildConfiguration) \
+                --no-build \
+                --logger trx \
+                --results-directory $(Agent.TempDirectory)/TestResults/Unit
+            displayName: 'Run unit tests'
+
+          - script: |
+              dotnet test tests/FunctionalTests/FunctionalTests.csproj \
+                --configuration $(buildConfiguration) \
+                --no-build \
+                --logger trx \
+                --results-directory $(Agent.TempDirectory)/TestResults/Functional
+            displayName: 'Run functional tests'
+
+          - script: |
+              dotnet test tests/ContractTests/ContractTests.csproj \
+                --configuration $(buildConfiguration) \
+                --no-build \
+                --logger trx \
+                --results-directory $(Agent.TempDirectory)/TestResults/Contract
+            displayName: 'Run contract tests'
+
+          - script: |
+              docker run -d \
+                --name habitat-ci-mysql \
+                -e MYSQL_ROOT_PASSWORD=$(ciMysqlRootPassword) \
+                -e MYSQL_DATABASE=$(ciMysqlDatabase) \
+                -e MYSQL_USER=$(ciMysqlUser) \
+                -e MYSQL_PASSWORD=$(ciMysqlPassword) \
+                -p 3306:3306 \
+                mysql:8.4
+
+              echo "Waiting for MySQL..."
+              for i in {1..60}; do
+                if docker exec habitat-ci-mysql mysqladmin ping -h 127.0.0.1 -uroot -p$(ciMysqlRootPassword) --silent; then
+                  echo "MySQL is ready."
+                  exit 0
+                fi
+
+                echo "MySQL not ready yet..."
+                sleep 2
+              done
+
+              echo "MySQL did not become ready in time."
+              docker logs habitat-ci-mysql
+              exit 1
+            displayName: 'Start MySQL for integration tests'
+
+          - script: |
+              docker exec -i habitat-ci-mysql mysql \
+                -uroot \
+                -p$(ciMysqlRootPassword) \
+                $(ciMysqlDatabase) < docker/mysql/init/001_schema.sql
+
+              docker exec -i habitat-ci-mysql mysql \
+                -uroot \
+                -p$(ciMysqlRootPassword) \
+                $(ciMysqlDatabase) < docker/mysql/init/002_seed.sql
+            displayName: 'Apply integration database schema and seed'
+
+          - script: |
+              dotnet test tests/IntegrationTests/IntegrationTests.csproj \
+                --configuration $(buildConfiguration) \
+                --logger trx \
+                --results-directory $(Agent.TempDirectory)/TestResults/Integration
+            displayName: 'Run integration tests'
+            env:
+              RUN_INTEGRATION_TESTS: 'true'
+              ConnectionStrings__DefaultConnection: 'Server=127.0.0.1;Port=3306;Database=$(ciMysqlDatabase);User ID=$(ciMysqlUser);Password=$(ciMysqlPassword);SslMode=None;'
+
+          - script: |
+              docker logs habitat-ci-mysql || true
+              docker rm -f habitat-ci-mysql || true
+            displayName: 'Stop MySQL integration container'
+            condition: always()
+
+          - task: PublishTestResults@2
+            displayName: 'Publish test results'
+            condition: always()
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '$(Agent.TempDirectory)/TestResults/**/*.trx'
+              failTaskOnFailedTests: true
+
+  - stage: BuildImage
+    displayName: 'Build and Push Docker Image'
+    dependsOn: BuildAndTest
+    jobs:
+      - job: DockerBuild
+        displayName: 'Build image in ACR'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: 'Build and push image with ACR'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                IMAGE_TAG="$(Build.SourceBranchName)-$(Build.BuildId)"
+                IMAGE_TAG="${IMAGE_TAG//\//-}"
+
+                az acr build \
+                  --registry "$(acrName)" \
+                  --image "$(imageRepository):$IMAGE_TAG" \
+                  --image "$(imageRepository):latest" \
+                  --file "$(dockerfilePath)" \
+                  .
+
+                echo "##vso[task.setvariable variable=imageTag;isOutput=true]$IMAGE_TAG"
+            name: buildImage
+
+  - stage: DeployHml
+    displayName: 'Deploy to HML'
+    dependsOn: BuildImage
+    variables:
+      imageTag: $[ stageDependencies.BuildImage.DockerBuild.outputs['buildImage.imageTag'] ]
+
+    jobs:
+      - deployment: DeployHmlContainerApp
+        displayName: 'Deploy HML Container App'
+        environment: 'hml'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: 'Update HML Container App image'
+                  inputs:
+                    azureSubscription: '$(azureServiceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az containerapp update \
+                        --name "$(hmlContainerAppName)" \
+                        --resource-group "$(hmlResourceGroup)" \
+                        --image "$(acrLoginServer)/$(imageRepository):$(imageTag)"
+
+  - stage: SmokeTestHml
+    displayName: 'Smoke Test HML'
+    dependsOn: DeployHml
+
+    jobs:
+      - job: SmokeHml
+        displayName: 'Run HML smoke tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Smoke test HML'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                HML_FQDN=$(az containerapp show \
+                  --name "$(hmlContainerAppName)" \
+                  --resource-group "$(hmlResourceGroup)" \
+                  --query properties.configuration.ingress.fqdn \
+                  --output tsv)
+
+                echo "HML URL: https://$HML_FQDN"
+
+                echo "Waiting a few seconds for new revision..."
+                sleep 20
+
+                STATUS=$(curl -s -o /tmp/hml-login-response.txt -w "%{http_code}" \
+                  "https://$HML_FQDN/api/v1/auth/login" \
+                  -H "Content-Type: application/json" \
+                  -d '{"email":"invalid@example.com","password":"invalid"}')
+
+                echo "HTTP status: $STATUS"
+                cat /tmp/hml-login-response.txt
+
+                if [ "$STATUS" != "401" ]; then
+                  echo "Expected 401 from login with invalid credentials, got $STATUS"
+                  exit 1
+                fi
+
+                echo "HML smoke test passed."
+
+  - stage: DeployPrd
+    displayName: 'Deploy to PRD'
+    dependsOn:
+      - BuildImage
+      - SmokeTestHml
+    variables:
+      imageTag: $[ stageDependencies.BuildImage.DockerBuild.outputs['buildImage.imageTag'] ]
+
+    jobs:
+      - deployment: DeployPrdContainerApp
+        displayName: 'Deploy PRD Container App'
+        environment: 'prd'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: 'Update PRD Container App image'
+                  inputs:
+                    azureSubscription: '$(azureServiceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az containerapp update \
+                        --name "$(prdContainerAppName)" \
+                        --resource-group "$(prdResourceGroup)" \
+                        --image "$(acrLoginServer)/$(imageRepository):$(imageTag)"
+
+  - stage: SmokeTestPrd
+    displayName: 'Smoke Test PRD'
+    dependsOn: DeployPrd
+
+    jobs:
+      - job: SmokePrd
+        displayName: 'Run PRD smoke tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Smoke test PRD'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                PRD_FQDN=$(az containerapp show \
+                  --name "$(prdContainerAppName)" \
+                  --resource-group "$(prdResourceGroup)" \
+                  --query properties.configuration.ingress.fqdn \
+                  --output tsv)
+
+                echo "PRD URL: https://$PRD_FQDN"
+
+                echo "Waiting a few seconds for new revision..."
+                sleep 20
+
+                STATUS=$(curl -s -o /tmp/prd-login-response.txt -w "%{http_code}" \
+                  "https://$PRD_FQDN/api/v1/auth/login" \
+                  -H "Content-Type: application/json" \
+                  -d '{"email":"invalid@example.com","password":"invalid"}')
+
+                echo "HTTP status: $STATUS"
+                cat /tmp/prd-login-response.txt
+
+                if [ "$STATUS" != "401" ]; then
+                  echo "Expected 401 from login with invalid credentials, got $STATUS"
+                  exit 1
+                fi
+
+                echo "PRD smoke test passed."
