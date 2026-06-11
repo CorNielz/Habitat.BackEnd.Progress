@@ -4,5 +4,7 @@ namespace Habitat.BackEnd.Progress.Application.Interfaces.Auth;
 
 public interface ITokenService
 {
-    Task<(string Token, DateTime ExpiresAtUtc)> GenerateTokenAsync(User user, CancellationToken cancellationToken = default);
+    Task<TokenResult> GenerateTokenAsync(User user, CancellationToken cancellationToken = default);
 }
+
+public sealed record TokenResult(string AccessToken, int ExpiresIn);
