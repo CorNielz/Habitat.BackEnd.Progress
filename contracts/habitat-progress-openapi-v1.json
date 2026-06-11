@@ -1,0 +1,2379 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Habitat: Progress API",
+        "version": "1.0.0",
+        "description": "Contrato OpenAPI v1.0 da API REST do aplicativo mobile Habitat: Progress. Esta vers\u00e3o cobre autentica\u00e7\u00e3o JWT sem refresh token, perfil, configura\u00e7\u00f5es, h\u00e1bitos, registros de conclus\u00e3o por data, anota\u00e7\u00f5es, dashboards derivados e administra\u00e7\u00e3o b\u00e1sica."
+    },
+    "servers": [
+        {
+            "url": "https://api.habitat-progress.com/api/v1",
+            "description": "Produ\u00e7\u00e3o"
+        },
+        {
+            "url": "https://localhost:5001/api/v1",
+            "description": "Desenvolvimento local"
+        }
+    ],
+    "tags": [
+        {
+            "name": "Auth",
+            "description": "Cadastro e autentica\u00e7\u00e3o de usu\u00e1rios."
+        },
+        {
+            "name": "Users",
+            "description": "Perfil e senha do usu\u00e1rio autenticado."
+        },
+        {
+            "name": "Settings",
+            "description": "Prefer\u00eancias do usu\u00e1rio autenticado."
+        },
+        {
+            "name": "Habits",
+            "description": "Gest\u00e3o de h\u00e1bitos do usu\u00e1rio autenticado."
+        },
+        {
+            "name": "HabitRecords",
+            "description": "Registros de conclus\u00e3o dos h\u00e1bitos. A exist\u00eancia de um registro em uma data representa h\u00e1bito conclu\u00eddo naquela data."
+        },
+        {
+            "name": "Notes",
+            "description": "Anota\u00e7\u00f5es pessoais do usu\u00e1rio autenticado."
+        },
+        {
+            "name": "Dashboard",
+            "description": "Indicadores derivados dos dados reais registrados pelo usu\u00e1rio."
+        },
+        {
+            "name": "Admin",
+            "description": "Opera\u00e7\u00f5es administrativas b\u00e1sicas restritas a usu\u00e1rios com papel ADMIN."
+        }
+    ],
+    "paths": {
+        "/auth/register": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Cadastrar usu\u00e1rio",
+                "description": "Cria uma conta de usu\u00e1rio comum. A senha deve ser armazenada somente como hash no backend.",
+                "operationId": "registerUser",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "name": "Daniel Vieira",
+                                        "email": "daniel@email.com",
+                                        "password": "Senha@123"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Usu\u00e1rio cadastrado com sucesso.",
+                        "headers": {
+                            "Location": {
+                                "description": "URL do recurso criado.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "id": 1,
+                                            "name": "Daniel Vieira",
+                                            "email": "daniel@email.com",
+                                            "role": "USER",
+                                            "createdAt": "2026-04-27T10:00:00Z"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Realizar login",
+                "description": "Autentica o usu\u00e1rio por e-mail e senha e retorna um token JWT de acesso.",
+                "operationId": "loginUser",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "email": "daniel@email.com",
+                                        "password": "Senha@123"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login realizado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LoginResponse"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                                            "tokenType": "Bearer",
+                                            "expiresIn": 3600,
+                                            "user": {
+                                                "id": 1,
+                                                "name": "Daniel Vieira",
+                                                "email": "daniel@email.com",
+                                                "role": "USER",
+                                                "createdAt": "2026-04-27T10:00:00Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/users/me": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Consultar perfil do usu\u00e1rio autenticado",
+                "description": "Retorna os dados p\u00fablicos do perfil da conta autenticada. N\u00e3o retorna senha, hash ou dados sens\u00edveis.",
+                "operationId": "getCurrentUserProfile",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Perfil retornado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "id": 1,
+                                            "name": "Daniel Vieira",
+                                            "email": "daniel@email.com",
+                                            "role": "USER",
+                                            "createdAt": "2026-04-27T10:00:00Z"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Atualizar perfil do usu\u00e1rio autenticado",
+                "description": "Atualiza os dados edit\u00e1veis do perfil do usu\u00e1rio autenticado.",
+                "operationId": "updateCurrentUserProfile",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProfileRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "name": "Daniel Vieira Atualizado"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Perfil atualizado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/users/me/password": {
+            "put": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Atualizar senha",
+                "description": "Atualiza a senha do usu\u00e1rio autenticado ap\u00f3s valida\u00e7\u00e3o da senha atual.",
+                "operationId": "updateCurrentUserPassword",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdatePasswordRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "currentPassword": "Senha@123",
+                                        "newPassword": "NovaSenha@123"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "Senha atualizada com sucesso."
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/settings": {
+            "get": {
+                "tags": [
+                    "Settings"
+                ],
+                "summary": "Consultar configura\u00e7\u00f5es do usu\u00e1rio",
+                "description": "Retorna as prefer\u00eancias do usu\u00e1rio autenticado.",
+                "operationId": "getCurrentUserSettings",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Configura\u00e7\u00f5es retornadas com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserSettingsResponse"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "theme": "SYSTEM",
+                                            "defaultDashboardPeriod": "MONTH",
+                                            "firstDayOfWeek": "MONDAY",
+                                            "showHomeSummary": true,
+                                            "updatedAt": "2026-04-27T10:00:00Z"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Settings"
+                ],
+                "summary": "Atualizar configura\u00e7\u00f5es do usu\u00e1rio",
+                "description": "Atualiza prefer\u00eancias b\u00e1sicas do aplicativo para o usu\u00e1rio autenticado.",
+                "operationId": "updateCurrentUserSettings",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateSettingsRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "theme": "DARK",
+                                        "defaultDashboardPeriod": "MONTH",
+                                        "firstDayOfWeek": "MONDAY",
+                                        "showHomeSummary": true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Configura\u00e7\u00f5es atualizadas com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserSettingsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/habits": {
+            "get": {
+                "tags": [
+                    "Habits"
+                ],
+                "summary": "Listar h\u00e1bitos do usu\u00e1rio autenticado",
+                "description": "Retorna h\u00e1bitos pertencentes exclusivamente ao usu\u00e1rio autenticado, com pagina\u00e7\u00e3o.",
+                "operationId": "listHabits",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista paginada de h\u00e1bitos.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PagedHabitResponse"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "page": 1,
+                                            "pageSize": 20,
+                                            "totalItems": 1,
+                                            "totalPages": 1,
+                                            "items": [
+                                                {
+                                                    "id": 10,
+                                                    "title": "Ler",
+                                                    "description": "Leitura di\u00e1ria",
+                                                    "frequencyType": "DAILY",
+                                                    "frequencyValue": "1",
+                                                    "startDate": "2026-05-01",
+                                                    "createdAt": "2026-05-01T10:00:00Z",
+                                                    "updatedAt": "2026-05-01T10:00:00Z"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Habits"
+                ],
+                "summary": "Criar h\u00e1bito",
+                "description": "Cria um h\u00e1bito vinculado ao usu\u00e1rio autenticado. O backend deve obter o usu\u00e1rio pelo token, nunca pelo corpo da requisi\u00e7\u00e3o.",
+                "operationId": "createHabit",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateHabitRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "title": "Ler",
+                                        "description": "Leitura di\u00e1ria",
+                                        "frequencyType": "DAILY",
+                                        "frequencyValue": "1",
+                                        "startDate": "2026-05-01"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "H\u00e1bito criado com sucesso.",
+                        "headers": {
+                            "Location": {
+                                "description": "URL do h\u00e1bito criado.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HabitResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/habits/{id}": {
+            "get": {
+                "tags": [
+                    "Habits"
+                ],
+                "summary": "Consultar h\u00e1bito espec\u00edfico",
+                "description": "Retorna um h\u00e1bito espec\u00edfico, desde que perten\u00e7a ao usu\u00e1rio autenticado.",
+                "operationId": "getHabitById",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "H\u00e1bito retornado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HabitResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Habits"
+                ],
+                "summary": "Atualizar h\u00e1bito",
+                "description": "Atualiza um h\u00e1bito espec\u00edfico, desde que perten\u00e7a ao usu\u00e1rio autenticado.",
+                "operationId": "updateHabit",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateHabitRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "title": "Ler livros",
+                                        "description": "30 minutos de leitura",
+                                        "frequencyType": "DAILY",
+                                        "frequencyValue": "1",
+                                        "startDate": "2026-05-01"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "H\u00e1bito atualizado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HabitResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Habits"
+                ],
+                "summary": "Excluir h\u00e1bito permanentemente",
+                "description": "Remove permanentemente um h\u00e1bito pertencente ao usu\u00e1rio autenticado. Como a decis\u00e3o da v1 \u00e9 hard delete, registros associados devem ser tratados conforme regra de persist\u00eancia definida no backend.",
+                "operationId": "deleteHabit",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Id"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "H\u00e1bito exclu\u00eddo com sucesso."
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            }
+        },
+        "/habits/{habitId}/records": {
+            "get": {
+                "tags": [
+                    "HabitRecords"
+                ],
+                "summary": "Listar hist\u00f3rico de conclus\u00f5es de um h\u00e1bito",
+                "description": "Retorna registros de conclus\u00e3o de um h\u00e1bito pertencente ao usu\u00e1rio autenticado. A exist\u00eancia do registro significa conclus\u00e3o naquela data.",
+                "operationId": "listHabitRecords",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/HabitId"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "description": "Data inicial do filtro.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-05-01"
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "description": "Data final do filtro.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-05-31"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Hist\u00f3rico paginado retornado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PagedHabitRecordResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "HabitRecords"
+                ],
+                "summary": "Marcar h\u00e1bito como conclu\u00eddo em uma data",
+                "description": "Cria um registro de conclus\u00e3o para o h\u00e1bito informado. Deve existir no m\u00e1ximo um registro por h\u00e1bito e data.",
+                "operationId": "createHabitRecord",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/HabitId"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateHabitRecordRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "recordDate": "2026-05-18",
+                                        "note": "Conclu\u00eddo pela manh\u00e3"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Registro de conclus\u00e3o criado com sucesso.",
+                        "headers": {
+                            "Location": {
+                                "description": "URL da listagem/hist\u00f3rico do h\u00e1bito.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HabitRecordResponse"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "id": 100,
+                                            "habitId": 10,
+                                            "recordDate": "2026-05-18",
+                                            "note": "Conclu\u00eddo pela manh\u00e3",
+                                            "recordedAt": "2026-05-18T08:00:00Z"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "HabitRecords"
+                ],
+                "summary": "Desmarcar conclus\u00e3o de h\u00e1bito em uma data",
+                "description": "Remove o registro de conclus\u00e3o de um h\u00e1bito em uma data. Esse endpoint representa o comportamento de desmarcar um checkbox de conclus\u00e3o no frontend.",
+                "operationId": "deleteHabitRecordByDate",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/HabitId"
+                    },
+                    {
+                        "name": "recordDate",
+                        "in": "query",
+                        "required": true,
+                        "description": "Data da conclus\u00e3o que deve ser removida.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-05-18"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Registro de conclus\u00e3o removido com sucesso."
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            }
+        },
+        "/notes": {
+            "get": {
+                "tags": [
+                    "Notes"
+                ],
+                "summary": "Listar anota\u00e7\u00f5es do usu\u00e1rio autenticado",
+                "description": "Retorna anota\u00e7\u00f5es pessoais pertencentes exclusivamente ao usu\u00e1rio autenticado, com pagina\u00e7\u00e3o e filtro opcional por data.",
+                "operationId": "listNotes",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    },
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "description": "Filtra anota\u00e7\u00f5es vinculadas a uma data espec\u00edfica.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-05-18"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista paginada de anota\u00e7\u00f5es.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PagedNoteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Notes"
+                ],
+                "summary": "Criar anota\u00e7\u00e3o",
+                "description": "Cria uma anota\u00e7\u00e3o pessoal vinculada a uma \u00fanica data e ao usu\u00e1rio autenticado.",
+                "operationId": "createNote",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateNoteRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "title": "Reflex\u00e3o",
+                                        "content": "Hoje foi um bom dia.",
+                                        "date": "2026-05-18"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Anota\u00e7\u00e3o criada com sucesso.",
+                        "headers": {
+                            "Location": {
+                                "description": "URL da anota\u00e7\u00e3o criada.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NoteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/notes/{id}": {
+            "get": {
+                "tags": [
+                    "Notes"
+                ],
+                "summary": "Consultar anota\u00e7\u00e3o espec\u00edfica",
+                "description": "Retorna uma anota\u00e7\u00e3o espec\u00edfica, desde que perten\u00e7a ao usu\u00e1rio autenticado.",
+                "operationId": "getNoteById",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Anota\u00e7\u00e3o retornada com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NoteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Notes"
+                ],
+                "summary": "Atualizar anota\u00e7\u00e3o",
+                "description": "Atualiza uma anota\u00e7\u00e3o espec\u00edfica, desde que perten\u00e7a ao usu\u00e1rio autenticado.",
+                "operationId": "updateNote",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateNoteRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "title": "Reflex\u00e3o atualizada",
+                                        "content": "Texto atualizado.",
+                                        "date": "2026-05-18"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Anota\u00e7\u00e3o atualizada com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NoteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Notes"
+                ],
+                "summary": "Excluir anota\u00e7\u00e3o permanentemente",
+                "description": "Remove permanentemente uma anota\u00e7\u00e3o pertencente ao usu\u00e1rio autenticado.",
+                "operationId": "deleteNote",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Id"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Anota\u00e7\u00e3o exclu\u00edda com sucesso."
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            }
+        },
+        "/dashboard": {
+            "get": {
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Consultar resumo de progresso",
+                "description": "Retorna indicadores b\u00e1sicos calculados a partir dos h\u00e1bitos, registros de conclus\u00e3o e anota\u00e7\u00f5es do pr\u00f3prio usu\u00e1rio autenticado. N\u00e3o usa entidade persistida de dashboard.",
+                "operationId": "getDashboardSummary",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "period",
+                        "in": "query",
+                        "description": "Per\u00edodo usado para c\u00e1lculo de m\u00e9tricas agregadas.",
+                        "schema": {
+                            "$ref": "#/components/schemas/DashboardPeriod"
+                        },
+                        "example": "MONTH"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Resumo retornado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DashboardSummaryResponse"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "period": "MONTH",
+                                            "totalHabits": 8,
+                                            "completedToday": 4,
+                                            "completionRate": 78.5,
+                                            "currentStreak": 12,
+                                            "notesCount": 6
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/dashboard/history": {
+            "get": {
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Consultar hist\u00f3rico de progresso",
+                "description": "Retorna s\u00e9rie temporal para gr\u00e1ficos de progresso, derivada dos registros reais do usu\u00e1rio autenticado.",
+                "operationId": "getDashboardHistory",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "period",
+                        "in": "query",
+                        "description": "Granularidade ou per\u00edodo de refer\u00eancia do hist\u00f3rico.",
+                        "schema": {
+                            "$ref": "#/components/schemas/DashboardPeriod"
+                        },
+                        "example": "MONTH"
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "description": "Data inicial do hist\u00f3rico.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-05-01"
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "description": "Data final do hist\u00f3rico.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-05-31"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Hist\u00f3rico retornado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DashboardHistoryResponse"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "period": "MONTH",
+                                            "from": "2026-05-01",
+                                            "to": "2026-05-31",
+                                            "items": [
+                                                {
+                                                    "date": "2026-05-01",
+                                                    "completedHabits": 3,
+                                                    "completionRate": 60.0
+                                                },
+                                                {
+                                                    "date": "2026-05-02",
+                                                    "completedHabits": 5,
+                                                    "completionRate": 83.3
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/admin/users": {
+            "get": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Listar usu\u00e1rios",
+                "description": "Lista usu\u00e1rios do sistema. Requer papel ADMIN.",
+                "operationId": "adminListUsers",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Page"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Usu\u00e1rios listados com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PagedAdminUserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/admin/users/{id}": {
+            "get": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Consultar usu\u00e1rio por administrador",
+                "description": "Retorna dados administrativos b\u00e1sicos de um usu\u00e1rio. Requer papel ADMIN.",
+                "operationId": "adminGetUserById",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Usu\u00e1rio retornado com sucesso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AdminUserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            }
+        },
+        "/admin/users/{id}/role": {
+            "put": {
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Alterar papel do usu\u00e1rio",
+                "description": "Atualiza o papel de um usu\u00e1rio. Requer papel ADMIN.",
+                "operationId": "adminUpdateUserRole",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateUserRoleRequest"
+                            },
+                            "examples": {
+                                "default": {
+                                    "value": {
+                                        "role": "ADMIN"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "Papel atualizado com sucesso."
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "Informe o token JWT no formato: Bearer {token}."
+            }
+        },
+        "parameters": {
+            "Id": {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "description": "Identificador num\u00e9rico do recurso.",
+                "schema": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 1
+                },
+                "example": 1
+            },
+            "HabitId": {
+                "name": "habitId",
+                "in": "path",
+                "required": true,
+                "description": "Identificador do h\u00e1bito.",
+                "schema": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 1
+                },
+                "example": 10
+            },
+            "Page": {
+                "name": "page",
+                "in": "query",
+                "required": false,
+                "description": "N\u00famero da p\u00e1gina, iniciando em 1.",
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 1
+                },
+                "example": 1
+            },
+            "PageSize": {
+                "name": "pageSize",
+                "in": "query",
+                "required": false,
+                "description": "Quantidade de itens por p\u00e1gina.",
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20
+                },
+                "example": 20
+            }
+        },
+        "responses": {
+            "BadRequest": {
+                "description": "Entrada inv\u00e1lida.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ProblemDetails"
+                        },
+                        "examples": {
+                            "default": {
+                                "value": {
+                                    "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                                    "title": "Bad Request",
+                                    "status": 400,
+                                    "detail": "The request contains invalid data.",
+                                    "instance": "/api/v1/habits"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Unauthorized": {
+                "description": "Usu\u00e1rio n\u00e3o autenticado ou token inv\u00e1lido.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ProblemDetails"
+                        },
+                        "examples": {
+                            "default": {
+                                "value": {
+                                    "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                                    "title": "Unauthorized",
+                                    "status": 401,
+                                    "detail": "Authentication is required to access this resource.",
+                                    "instance": "/api/v1/users/me"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Forbidden": {
+                "description": "Usu\u00e1rio autenticado sem permiss\u00e3o para executar a opera\u00e7\u00e3o.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ProblemDetails"
+                        },
+                        "examples": {
+                            "default": {
+                                "value": {
+                                    "type": "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                                    "title": "Forbidden",
+                                    "status": 403,
+                                    "detail": "You do not have permission to access this resource.",
+                                    "instance": "/api/v1/admin/users"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "NotFound": {
+                "description": "Recurso n\u00e3o encontrado ou n\u00e3o pertencente ao usu\u00e1rio autenticado.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ProblemDetails"
+                        },
+                        "examples": {
+                            "default": {
+                                "value": {
+                                    "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+                                    "title": "Not Found",
+                                    "status": 404,
+                                    "detail": "The requested resource was not found.",
+                                    "instance": "/api/v1/habits/10"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Conflict": {
+                "description": "Conflito com o estado atual do recurso.",
+                "content": {
+                    "application/problem+json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ProblemDetails"
+                        },
+                        "examples": {
+                            "emailAlreadyExists": {
+                                "value": {
+                                    "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+                                    "title": "Conflict",
+                                    "status": 409,
+                                    "detail": "A user with this e-mail already exists.",
+                                    "instance": "/api/v1/auth/register"
+                                }
+                            },
+                            "habitAlreadyCompletedAtDate": {
+                                "value": {
+                                    "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+                                    "title": "Conflict",
+                                    "status": 409,
+                                    "detail": "This habit already has a completion record for the informed date.",
+                                    "instance": "/api/v1/habits/10/records"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "RegisterRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "name",
+                    "email",
+                    "password"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 120,
+                        "example": "Daniel Vieira"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "maxLength": 180,
+                        "example": "daniel@email.com"
+                    },
+                    "password": {
+                        "type": "string",
+                        "minLength": 8,
+                        "maxLength": 100,
+                        "format": "password",
+                        "example": "Senha@123"
+                    }
+                }
+            },
+            "LoginRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "email",
+                    "password"
+                ],
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "daniel@email.com"
+                    },
+                    "password": {
+                        "type": "string",
+                        "format": "password",
+                        "example": "Senha@123"
+                    }
+                }
+            },
+            "LoginResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "accessToken",
+                    "tokenType",
+                    "expiresIn",
+                    "user"
+                ],
+                "properties": {
+                    "accessToken": {
+                        "type": "string",
+                        "description": "Token JWT de acesso."
+                    },
+                    "tokenType": {
+                        "type": "string",
+                        "enum": [
+                            "Bearer"
+                        ],
+                        "example": "Bearer"
+                    },
+                    "expiresIn": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Tempo de expira\u00e7\u00e3o do token em segundos.",
+                        "example": 3600
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/UserResponse"
+                    }
+                }
+            },
+            "UserResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "id",
+                    "name",
+                    "email",
+                    "role",
+                    "createdAt"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Daniel Vieira"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "daniel@email.com"
+                    },
+                    "role": {
+                        "$ref": "#/components/schemas/UserRole"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-04-27T10:00:00Z"
+                    }
+                }
+            },
+            "UpdateProfileRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 120,
+                        "example": "Daniel Vieira Atualizado"
+                    }
+                }
+            },
+            "UpdatePasswordRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "currentPassword",
+                    "newPassword"
+                ],
+                "properties": {
+                    "currentPassword": {
+                        "type": "string",
+                        "format": "password",
+                        "example": "Senha@123"
+                    },
+                    "newPassword": {
+                        "type": "string",
+                        "minLength": 8,
+                        "maxLength": 100,
+                        "format": "password",
+                        "example": "NovaSenha@123"
+                    }
+                }
+            },
+            "UserSettingsResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "theme",
+                    "defaultDashboardPeriod",
+                    "firstDayOfWeek",
+                    "showHomeSummary",
+                    "updatedAt"
+                ],
+                "properties": {
+                    "theme": {
+                        "$ref": "#/components/schemas/Theme"
+                    },
+                    "defaultDashboardPeriod": {
+                        "$ref": "#/components/schemas/DashboardPeriod"
+                    },
+                    "firstDayOfWeek": {
+                        "$ref": "#/components/schemas/DayOfWeek"
+                    },
+                    "showHomeSummary": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-04-27T10:00:00Z"
+                    }
+                }
+            },
+            "UpdateSettingsRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "theme",
+                    "defaultDashboardPeriod",
+                    "firstDayOfWeek",
+                    "showHomeSummary"
+                ],
+                "properties": {
+                    "theme": {
+                        "$ref": "#/components/schemas/Theme"
+                    },
+                    "defaultDashboardPeriod": {
+                        "$ref": "#/components/schemas/DashboardPeriod"
+                    },
+                    "firstDayOfWeek": {
+                        "$ref": "#/components/schemas/DayOfWeek"
+                    },
+                    "showHomeSummary": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                }
+            },
+            "CreateHabitRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "title",
+                    "frequencyType",
+                    "frequencyValue",
+                    "startDate"
+                ],
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "example": "Ler"
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 1000,
+                        "example": "Leitura di\u00e1ria"
+                    },
+                    "frequencyType": {
+                        "$ref": "#/components/schemas/HabitFrequencyType"
+                    },
+                    "frequencyValue": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "description": "Valor complementar da frequ\u00eancia. Exemplos: 1, MONDAY,WEDNESDAY,FRIDAY ou 3x por semana.",
+                        "example": "1"
+                    },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-01"
+                    }
+                }
+            },
+            "UpdateHabitRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "title",
+                    "frequencyType",
+                    "frequencyValue",
+                    "startDate"
+                ],
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "example": "Ler livros"
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 1000,
+                        "example": "30 minutos de leitura"
+                    },
+                    "frequencyType": {
+                        "$ref": "#/components/schemas/HabitFrequencyType"
+                    },
+                    "frequencyValue": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "example": "1"
+                    },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-01"
+                    }
+                }
+            },
+            "HabitResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "id",
+                    "title",
+                    "frequencyType",
+                    "frequencyValue",
+                    "startDate",
+                    "createdAt",
+                    "updatedAt"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "Ler"
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "Leitura di\u00e1ria"
+                    },
+                    "frequencyType": {
+                        "$ref": "#/components/schemas/HabitFrequencyType"
+                    },
+                    "frequencyValue": {
+                        "type": "string",
+                        "example": "1"
+                    },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-01"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-05-01T10:00:00Z"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-05-01T10:00:00Z"
+                    }
+                }
+            },
+            "CreateHabitRecordRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "recordDate"
+                ],
+                "properties": {
+                    "recordDate": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Data em que o h\u00e1bito foi conclu\u00eddo.",
+                        "example": "2026-05-18"
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 1000,
+                        "example": "Conclu\u00eddo pela manh\u00e3"
+                    }
+                }
+            },
+            "HabitRecordResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "id",
+                    "habitId",
+                    "recordDate",
+                    "recordedAt"
+                ],
+                "description": "Registro de conclus\u00e3o de h\u00e1bito. A exist\u00eancia deste registro representa conclus\u00e3o do h\u00e1bito na data informada.",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 100
+                    },
+                    "habitId": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "recordDate": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-18"
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "Conclu\u00eddo pela manh\u00e3"
+                    },
+                    "recordedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-05-18T08:00:00Z"
+                    }
+                }
+            },
+            "CreateNoteRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "content",
+                    "date"
+                ],
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 150,
+                        "example": "Reflex\u00e3o"
+                    },
+                    "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "example": "Hoje foi um bom dia."
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Data \u00fanica associada \u00e0 anota\u00e7\u00e3o.",
+                        "example": "2026-05-18"
+                    }
+                }
+            },
+            "UpdateNoteRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "content",
+                    "date"
+                ],
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 150,
+                        "example": "Reflex\u00e3o atualizada"
+                    },
+                    "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "example": "Texto atualizado."
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-18"
+                    }
+                }
+            },
+            "NoteResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "id",
+                    "content",
+                    "date",
+                    "createdAt",
+                    "updatedAt"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "title": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "Reflex\u00e3o"
+                    },
+                    "content": {
+                        "type": "string",
+                        "example": "Hoje foi um bom dia."
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-18"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-05-18T10:00:00Z"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-05-18T10:00:00Z"
+                    }
+                }
+            },
+            "DashboardSummaryResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "period",
+                    "totalHabits",
+                    "completedToday",
+                    "completionRate",
+                    "currentStreak",
+                    "notesCount"
+                ],
+                "properties": {
+                    "period": {
+                        "$ref": "#/components/schemas/DashboardPeriod"
+                    },
+                    "totalHabits": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 8
+                    },
+                    "completedToday": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 4
+                    },
+                    "completionRate": {
+                        "type": "number",
+                        "format": "double",
+                        "description": "Percentual de conclus\u00e3o no per\u00edodo, usando escala 0 a 100.",
+                        "example": 78.5
+                    },
+                    "currentStreak": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Sequ\u00eancia atual de dias com pelo menos uma conclus\u00e3o registrada, conforme regra de c\u00e1lculo da aplica\u00e7\u00e3o.",
+                        "example": 12
+                    },
+                    "notesCount": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Quantidade de anota\u00e7\u00f5es no per\u00edodo considerado.",
+                        "example": 6
+                    }
+                }
+            },
+            "DashboardHistoryResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "period",
+                    "from",
+                    "to",
+                    "items"
+                ],
+                "properties": {
+                    "period": {
+                        "$ref": "#/components/schemas/DashboardPeriod"
+                    },
+                    "from": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-01"
+                    },
+                    "to": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-31"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DashboardHistoryItem"
+                        }
+                    }
+                }
+            },
+            "DashboardHistoryItem": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "date",
+                    "completedHabits",
+                    "completionRate"
+                ],
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-05-01"
+                    },
+                    "completedHabits": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 3
+                    },
+                    "completionRate": {
+                        "type": "number",
+                        "format": "double",
+                        "example": 60.0
+                    }
+                }
+            },
+            "AdminUserResponse": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "id",
+                    "name",
+                    "email",
+                    "role",
+                    "createdAt"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Daniel Vieira"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "daniel@email.com"
+                    },
+                    "role": {
+                        "$ref": "#/components/schemas/UserRole"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-04-27T10:00:00Z"
+                    },
+                    "lastLoginAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true,
+                        "example": "2026-05-18T08:00:00Z"
+                    }
+                }
+            },
+            "UpdateUserRoleRequest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "role"
+                ],
+                "properties": {
+                    "role": {
+                        "$ref": "#/components/schemas/UserRole"
+                    }
+                }
+            },
+            "PagedHabitResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/PagedResponseBase"
+                    },
+                    {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                            "items"
+                        ],
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/HabitResponse"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "PagedHabitRecordResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/PagedResponseBase"
+                    },
+                    {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                            "items"
+                        ],
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/HabitRecordResponse"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "PagedNoteResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/PagedResponseBase"
+                    },
+                    {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                            "items"
+                        ],
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/NoteResponse"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "PagedAdminUserResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/PagedResponseBase"
+                    },
+                    {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                            "items"
+                        ],
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/AdminUserResponse"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "PagedResponseBase": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "page",
+                    "pageSize",
+                    "totalItems",
+                    "totalPages"
+                ],
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 20
+                    },
+                    "totalItems": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 42
+                    },
+                    "totalPages": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 3
+                    }
+                }
+            },
+            "ProblemDetails": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "https://tools.ietf.org/html/rfc9110#section-15.5.1"
+                    },
+                    "title": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "Bad Request"
+                    },
+                    "status": {
+                        "type": "integer",
+                        "format": "int32",
+                        "nullable": true,
+                        "example": 400
+                    },
+                    "detail": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "The request contains invalid data."
+                    },
+                    "instance": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "/api/v1/habits"
+                    }
+                }
+            },
+            "UserRole": {
+                "type": "string",
+                "enum": [
+                    "USER",
+                    "ADMIN"
+                ],
+                "example": "USER"
+            },
+            "HabitFrequencyType": {
+                "type": "string",
+                "enum": [
+                    "DAILY",
+                    "WEEKLY",
+                    "MONTHLY",
+                    "CUSTOM"
+                ],
+                "example": "DAILY"
+            },
+            "Theme": {
+                "type": "string",
+                "enum": [
+                    "LIGHT",
+                    "DARK",
+                    "SYSTEM"
+                ],
+                "example": "SYSTEM"
+            },
+            "DashboardPeriod": {
+                "type": "string",
+                "enum": [
+                    "WEEK",
+                    "MONTH",
+                    "YEAR"
+                ],
+                "example": "MONTH"
+            },
+            "DayOfWeek": {
+                "type": "string",
+                "enum": [
+                    "SUNDAY",
+                    "MONDAY",
+                    "TUESDAY",
+                    "WEDNESDAY",
+                    "THURSDAY",
+                    "FRIDAY",
+                    "SATURDAY"
+                ],
+                "example": "MONDAY"
+            }
+        }
+    }
+}
